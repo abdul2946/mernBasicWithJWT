@@ -110,6 +110,8 @@ app.get("/submit", auth, (req, res) => {
   res.render("submit");
 });
 
+
+// Logout from a single device
 app.get("/logout", auth, async (req, res) => {
   try {
     
@@ -125,7 +127,7 @@ app.get("/logout", auth, async (req, res) => {
   }
 });
 
-// logging out all devices
+// Logout from all devices
 app.get("/logoutall", auth, async (req, res) => {
   try {
 
