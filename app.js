@@ -5,12 +5,11 @@ const ejs = require("ejs");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser")
+const cookieParser = require("cookie-parser");
 const dotenv = require("dotenv");
 dotenv.config();
 
 const app = express();
-
 
 app.use(cookieParser());
 app.use(express.static("public"));
@@ -23,11 +22,10 @@ mongoose.connect(mongoUri);
 
 const secretKey = process.env.SECRET;
 
-
 // Secrets Scheea
 const secretSchema = new mongoose.Schema({
-  secret: String
-})
+  secret: String,
+});
 
 const Secret = new mongoose.model("Secret", secretSchema);
 
@@ -36,11 +34,11 @@ const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true
+    unique: true,
   },
   password: {
     type: String,
-    required: true
+    required: true,
   },
   tokens: [
     {
@@ -52,14 +50,14 @@ const userSchema = new mongoose.Schema({
   ],
   secret: {
     type: mongoose.Schema.Types.String,
-    ref:"Secret"
-  }
+    ref: "Secret",
+  },
 });
 
 // Generating token
 userSchema.methods.generateAuthToken = async function () {
   try {
-    const token = jwt.sign({ _id: this._id.toString()}, secretKey );
+    const token = jwt.sign({ _id: this._id.toString() }, secretKey);
     this.tokens = this.tokens.concat({ token: token });
     await this.save();
     return token;
@@ -78,21 +76,22 @@ userSchema.pre("save", async function (next) {
 
 const User = new mongoose.model("User", userSchema);
 
-
 // Authentication Middleware
 const auth = async (req, res, next) => {
   try {
-    
     const userToken = req.cookies.jwt;
     const verifyUser = jwt.verify(userToken, secretKey);
-    const user = User.findOne({ _id: verifyUser._id });
-    next();
+    const ID = verifyUser._id
+    const foundUser = await User.findOne({ _id: ID });
+  
+    req.token = userToken;
+    req.user = foundUser;
 
+    next();
   } catch (error) {
     console.log(error);
   }
-}
-
+};
 
 // Showing the ejs pages
 app.get("/", (req, res) => {
@@ -107,25 +106,53 @@ app.get("/register", (req, res) => {
   res.render("register");
 });
 
-app.get("/submit",auth, (req, res) => {
+app.get("/submit", auth, (req, res) => {
   res.render("submit");
 });
 
-app.post("/submit", async (req, res) => {
+app.get("/logout", auth, async (req, res) => {
   try {
-    const secret = req.body.secret;
-    const newSecret = new Secret({
-      secret: secret
+    
+    req.user.tokens = req.user.tokens.filter((currentElemnet) => {
+      return currentElemnet.token !== req.token;
     })
+    res.clearCookie("jwt");
+    await req.user.save();
+    res.render("home");
 
-    const saveSecret = await newSecret.save();
+  } catch (error) {
+    console.log(error);
+  }
+});
 
-    res.status(201).render("secrets")
+// logging out all devices
+app.get("/logoutall", auth, async (req, res) => {
+  try {
+
+    req.user.tokens = []
+    res.clearCookie("jwt")
+    await req.user.save()
+    res.render("home")
+
   } catch (error) {
     console.log(error);
   }
 })
 
+app.post("/submit", async (req, res) => {
+  try {
+    const secret = req.body.secret;
+    const newSecret = new Secret({
+      secret: secret,
+    });
+
+    const saveSecret = await newSecret.save();
+
+    res.status(201).render("secrets");
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 // Signup logic
 app.post("/register", async (req, res) => {
@@ -142,18 +169,16 @@ app.post("/register", async (req, res) => {
 
     res.cookie("jwt", token, {
       expires: new Date(Date.now() + 24 * 60 * 60 * 1000),
-      httpOnly: true
+      httpOnly: true,
     });
 
     const registerdUser = await newUser.save();
 
     res.status(201).render("secrets");
-
   } catch (error) {
     console.log(error);
   }
 });
-
 
 // Login logic
 app.post("/login", async (req, res) => {
@@ -177,7 +202,6 @@ app.post("/login", async (req, res) => {
     } else {
       console.log("Wrong Password");
     }
-
   } catch (error) {
     console.log(error);
   }
